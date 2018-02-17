@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <omp.h>
-#include<math.h>
+#include <math.h>
 
 
 void Print_matrix(const int Matrix[100][100],int num){

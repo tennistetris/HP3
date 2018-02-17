@@ -1,8 +1,125 @@
 #include <stdio.h>
-#include<stdlib.h>
+#include <stdlib.h>
 #include <omp.h>
-#include<math.h>
+#include <math.h>
+#include <string.h>
 
+#define HI(num) (((num) & 0x0000FF00) << 8) 
+#define LO(num) ((num) & 0x000000FF) 
+
+typedef struct _PGMData {
+    int row;
+    int col;
+    int max_gray;
+    int *image;
+}PGMData;
+
+int *allocate_dynamic_matrix(int row, int col)
+{
+    int *ret_val;
+    int i;
+ 
+    ret_val = (int *)malloc(row*col*sizeof(int));
+    if (ret_val == NULL) {
+    
+        perror("memory allocation failure");
+        exit(EXIT_FAILURE);
+    }
+
+    return ret_val;
+}
+ 
+void deallocate_dynamic_matrix(int *matrix)
+{
+    free(matrix);
+}
+
+/*for reading:*/
+void readPGM(const char *file_name, PGMData *data)
+{
+    FILE *pgmFile;
+    char version[3];
+    int i, j;
+    int lo, hi;
+    pgmFile = fopen(file_name, "rb");
+    if (pgmFile == NULL) {
+        perror("cannot open file to read");
+        exit(EXIT_FAILURE);
+    }
+    fgets(version, sizeof(version), pgmFile);
+    if (strcmp(version, "P5")) {
+        fprintf(stderr, "Wrong file type!\n");
+        exit(EXIT_FAILURE);
+    }
+    fscanf(pgmFile, "%d", &data->col);
+    fscanf(pgmFile, "%d", &(data->row));
+    fscanf(pgmFile, "%d", &data->max_gray);
+    fgetc(pgmFile);
+ 
+    data->image = allocate_dynamic_matrix((data->row), data->col);
+    if (data->max_gray > 255) {
+        for (i = 0; i < (data->row); ++i) {
+            for (j = 0; j < data->col; ++j) {
+                hi = fgetc(pgmFile);
+                lo = fgetc(pgmFile);
+                data->image[i*(data->row) + j] = (hi << 8) + lo;
+            }
+        }
+    }
+    else {
+        for (i = 0; i < (data->row); ++i) {
+            for (j = 0; j < data->col; ++j) {
+                lo = fgetc(pgmFile);
+                data->image[i*(data->row)+j] = lo;
+            }
+        }
+    }
+ 
+    fclose(pgmFile);
+ 
+}
+
+/*and for writing*/
+ 
+void writePGM(const char *filename, const PGMData *data)
+{
+    FILE *pgmFile;
+    int i, j;
+    int hi, lo;
+ 
+    pgmFile = fopen(filename, "wb");
+    if (pgmFile == NULL) {
+        perror("cannot open file to write");
+        exit(EXIT_FAILURE);
+    }
+ 
+    fprintf(pgmFile, "P5 ");
+    fprintf(pgmFile, "%d %d ", data->col, (data->row));
+    fprintf(pgmFile, "%d ", data->max_gray);
+ 
+    if (data->max_gray > 255) {
+        for (i = 0; i < (data->row); ++i) {
+            for (j = 0; j < data->col; ++j) {
+                hi = HI(data->image[i*(data->row) + j]);
+                lo = LO(data->image[i*(data->row) + j]);
+                fputc(hi, pgmFile);
+                fputc(lo, pgmFile);
+            }
+ 
+        }
+    }
+    else {
+        for (i = 0; i < (data->row); ++i) {
+            for (j = 0; j < data->col; ++j) {
+                lo = LO(data->image[i*(data->row) + j]);
+                fputc(lo, pgmFile);
+            }
+        }
+    }
+ 
+    fclose(pgmFile);
+    free(data->image);
+}
 
 void checkHistrogram(int hist[],int hist_correct[]){
     int counter = 0;
@@ -29,6 +146,7 @@ void histCorrect(int *image,int * hist_correct,const int size){
     wtime = omp_get_wtime() - wtime;
     printf("\nNon Parallel Implementation of Part 1: %lf s.\n",wtime);
 }
+    
 
 void naiveImplementationPart2(int *image,const int size){
     
@@ -42,19 +160,21 @@ void naiveImplementationPart2(int *image,const int size){
     double wtime = omp_get_wtime(); 
     for(i = 0;i<max_strides;i++){
         for(j = 0;j<max_strides;j++){
+    
 
             start_x = i*segment_size;
             start_y = j*segment_size;
 
             for(int k = 0;k<segment_size;k++){
                 for(int l = 0;l<segment_size;l++){
+                    //printf("%d ",image[(start_x+k)*size + (start_y+l)]);
                     sum+=image[(start_x+k)*size + (start_y+l)];
                 }
             }
 
             mean = (float)sum/segment_area;
 
-            if(mean<20){
+            if(mean<256){
                 for(int k = 0;k<segment_size;k++){
                     for(int l=0;l<segment_size;l++){
                         image[(start_x+k)*size+(start_y+l)] = 0;
@@ -95,22 +215,33 @@ int main(){
     
     srand(100);
     const int size = 2000; 
-    int *image = (int*)(malloc(size*size*sizeof(int)));
-    int *image_copy = (int*)(malloc(size*size*sizeof(int)));//required for checking
+    //int *image = (int*)(malloc(size*size*sizeof(int)));
+    int *image; //comment for random initialization
+    //int *image_copy = (int*)(malloc(size*size*sizeof(int)));//required for checking
+    int* image_copy;
     double wtime;
 	int thread_num = omp_get_max_threads();
 	omp_set_num_threads(thread_num);
     unsigned long int index;
     
-    
+    //Comment the following statements for random initialization
+    //..........................................................
+    PGMData data_read,temp;
+    readPGM("Julia_IIM_6_circle.pgm",&data_read);
+    image = data_read.image;
+    readPGM("Julia_IIM_6_circle.pgm",&temp);
+    image_copy = temp.image;
+    //..........................................................
+
     //Initializing the matrix
     for(int i=0;i<size;i++){
         for(int j = 0;j<size;j++){
             index = (long)i*size+j;
-            image[index] = rand()%256;
-            image_copy[index] = image[index];
+            //image[index] = rand()%256;   //Uncomment to return to random initialization
+            //image_copy[index] = image[index];
         }
     }
+
     int hist[256],hist_correct[256],hist_copy[256];
     
     for(int i = 0;i<256;i++){
@@ -154,18 +285,20 @@ int main(){
     int max_strides = size/segment_size;
     //PART 2
     wtime = omp_get_wtime();
+
     #pragma omp for collapse(2)     
     for(i = 0;i<max_strides;i++){
         for(j = 0;j<max_strides;j++){
             for(int k = 0;k<segment_size;k++){
                 for(int l = 0;l<segment_size;l++){
                     sum+=image[((long)i*segment_size+k)*size + (j*segment_size+l)];
+    
                 }
             }
             
             mean = ((float)sum)/segment_area;
 
-            if(mean<20){
+            if(mean<256){
                 for(int k = 0;k<segment_size;k++){
                     for(int l=0;l<segment_size;l++){
                         image[((long)i*segment_size+k)*size+((long)j*segment_size+l)] = 0;
@@ -227,9 +360,10 @@ int main(){
     wtime = omp_get_wtime()-wtime;
     printf("\nParallel implementation of Part 2 took %lf s.\n",wtime);
     */
-    
+
     naiveImplementationPart2(image_copy,size);
     checkImage(image_copy,image,size);
+    writePGM("modified_file.pgm",&data_read);
     
     return 0;
 }
