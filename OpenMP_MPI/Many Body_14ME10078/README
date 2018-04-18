@@ -1,0 +1,7 @@
+1. Use make run to run with input file and print into output file
+
+2. Trajectory printed at every 100th step 
+
+3. Trajectory printed as (X_pos Y-pos Z_pos)X1000
+
+4. Different timesteps separated by a line "TERMINATE"

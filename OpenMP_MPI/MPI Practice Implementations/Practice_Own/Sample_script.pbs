@@ -1,0 +1,8 @@
+#PBS -N job1
+#PBS -q high
+#PBS -I nodes=64
+#PBS -I walltime=128:00:00
+#use cd to change into working directory if required
+#normally the script evaluates in the base directory
+mpirun -np 16 ./a.out
+exit 0
